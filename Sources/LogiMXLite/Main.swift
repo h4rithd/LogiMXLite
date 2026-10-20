@@ -38,8 +38,7 @@ import LogiCore
     /// when its window closes, without keeping a second resident helper binary.
     private var configurationProcess: Process?
     private var openingConfiguration = false
-    private var reopenAfterChildExit = false
-    private var reopenObserver: NSObjectProtocol?
+    private var relaunchConfigurationRequested = false
     private var isConfigurationProcess: Bool { CommandLine.arguments.contains("--configuration-process") }
     private var terminating = false
     private var terminationRequested = false
@@ -64,19 +63,13 @@ import LogiCore
         let model = AppModel(); self.model = model
         if isConfigurationProcess {
             model.quit = { NSApplication.shared.terminate(nil) }
+            model.requestRelaunch = { [weak self] in
+                self?.relaunchConfigurationRequested = true
+                NSApplication.shared.terminate(nil)
+            }
             model.start()
             openSettings()
             return
-        }
-        reopenObserver = DistributedNotificationCenter.default().addObserver(
-            forName: .init("com.h4rithd.LogiMXLite.reopenConfiguration"), object: nil, queue: .main
-        ) { [weak self] notification in
-            let senderPID = notification.object as? String
-            Task { @MainActor [weak self] in
-                guard let self, let child = self.configurationProcess,
-                      senderPID == String(child.processIdentifier) else { return }
-                self.reopenAfterChildExit = true
-            }
         }
         let item = NSStatusBar.system.statusItem(withLength:NSStatusItem.squareLength)
         status = item; item.button?.image = Self.mark(); item.button?.toolTip = "LogiMXLite · mouse and keyboard"; item.button?.setAccessibilityLabel("LogiMXLite devices")
@@ -160,13 +153,13 @@ import LogiCore
                 child.executableURL = Bundle.main.executableURL
                 child.arguments = ["--configuration-process", "--parent-pid", String(ProcessInfo.processInfo.processIdentifier)]
                     + (requestedPage.map { ["--page", $0.rawValue] } ?? [])
-                child.terminationHandler = { [weak self] _ in
+                child.terminationHandler = { [weak self] process in
+                    let reopen = process.terminationReason == .exit && process.terminationStatus == 42
                     Task { @MainActor [weak self] in
                         guard let self else { return }
                         self.configurationProcess = nil
                         guard !self.terminating else { return }
-                        if self.reopenAfterChildExit {
-                            self.reopenAfterChildExit = false
+                        if reopen {
                             self.openSettings()
                         } else {
                             await self.model?.resumeAfterConfiguration()
@@ -224,10 +217,6 @@ import LogiCore
                 if child.isRunning { child.terminate() }
             }
             await model?.shutdown()
-            if let reopenObserver {
-                DistributedNotificationCenter.default().removeObserver(reopenObserver)
-                self.reopenObserver = nil
-            }
             if let status { NSStatusBar.system.removeStatusItem(status) }
             for item in lowBatteryItems.values { NSStatusBar.system.removeStatusItem(item) }
             lowBatteryItems.removeAll()
@@ -244,6 +233,7 @@ import LogiCore
     private func finishTermination(_ sender: NSApplication) {
         guard !terminationRequested else { return }
         terminationRequested = true
+        if isConfigurationProcess && relaunchConfigurationRequested { Darwin.exit(42) }
         sender.terminate(nil)
     }
     static func mark() -> NSImage {

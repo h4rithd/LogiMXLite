@@ -53,6 +53,7 @@ struct DeviceViewState {
     private var mappingWorker: Task<Void,Never>?
     var showSettings: (() -> Void)?
     var quit: (() -> Void)?
+    var requestRelaunch: (() -> Void)?
     var onDeviceStatusChange: (() -> Void)?
     init() {
         let initial = try! ReferenceMigration.defaults()
@@ -184,11 +185,7 @@ struct DeviceViewState {
     }
     func relaunch() {
         if CommandLine.arguments.contains("--configuration-process") {
-            DistributedNotificationCenter.default().post(
-                name: .init("com.h4rithd.LogiMXLite.reopenConfiguration"),
-                object: String(ProcessInfo.processInfo.processIdentifier)
-            )
-            quit?()
+            requestRelaunch?()
             return
         }
         let configuration = NSWorkspace.OpenConfiguration()

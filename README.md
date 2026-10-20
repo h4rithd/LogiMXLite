@@ -24,7 +24,7 @@ The images below are captures of the running macOS app, not design mockups. Batt
 ## Install
 
 1. Download [LogiMXLite 1.2.1.pkg](https://github.com/h4rithd/LogiMXLite/releases/download/v1.2.1/LogiMXLite-1.2.1.pkg) from the [Releases page](https://github.com/h4rithd/LogiMXLite/releases).
-2. Check its SHA-256 if you want to verify the download: `200f4f21f6e095bb3e7041226845780a524075d70b26756293203f6eedeeffc7`.
+2. Check its SHA-256 if you want to verify the download: `81a99245d69ecfabadec85a86b60aec83a84d66e00f355084a2e3d18470f6b64`.
 3. Open the package and launch **LogiMXLite** from Applications. This locally built package is **unsigned and not notarized**; the app inside is ad-hoc signed. macOS may require **Control-click → Open** on first launch. The package does not establish a verified publisher identity.
 4. Pair both supported devices in macOS Bluetooth settings, select this Mac on each Easy-Switch control, and grant **Input Monitoring** and **Accessibility** to LogiMXLite in System Settings → Privacy & Security. Relaunch after granting access.
 5. Quit Logi Options+ or another tool that diverts the same controls before enabling mappings. The Settings screen shows permission and conflict status.
