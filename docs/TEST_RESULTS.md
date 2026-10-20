@@ -1,5 +1,11 @@
 # Test results
 
+## 1.2.1 process split and memory verification
+
+On 2026-10-20, the arm64 release build and application signature verified. The PKG expanded, the DMG verified, and the configuration-process smoke hook reported `configurationProcessRunning=true`. The installed 1.2.1 binary matched the packaged executable by SHA-256. The live configuration child showed both supported BLE devices connected and mappings active; after closing its window, the child exited and the menu-bar process remained alone.
+
+On the Apple M4 / 24 GB Mac running macOS 27.0.1, `footprint -p` measured the resident device process at 16–17 MB before, during, and after configuration. The child measured 44 MB on Overview, 58 MB on Mouse, and 64 MB after visiting Keyboard. Ten `top -l 10 -s 2` samples over about 20 seconds measured the connected resident process at 0.0–0.4% CPU. A separate 100-million-iteration device-free stress process used 8.80 seconds wall / 8.77 seconds user CPU and 7,684,096 bytes maximum RSS. This does not verify sustained physical gestures or transition latency.
+
 ## 1.2.0 release verification
 
 On 2026-10-20, `swift test` passed all 39 tests before the test sources and test target were removed at the owner's request; that command is no longer available in the current source tree. The arm64 app built and passed `codesign --verify --strict`; the DMG verified and the unsigned PKG expanded with the executable present. The installed 1.2.0 binary matched the packaged binary by SHA-256 and the live overview showed both supported devices connected. This is not a full physical-control acceptance test.

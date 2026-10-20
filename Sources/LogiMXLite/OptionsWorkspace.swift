@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import ImageIO
 import LogiCore
 
 // MARK: - Style
@@ -46,14 +47,42 @@ extension View {
     }
 }
 
+/// Keep decoded product art only while the configuration window is open. SwiftUI can
+/// reevaluate a view body many times per second during edits and animations; decoding
+/// a fresh NSImage there made closed-window memory grow with every visited page.
+@MainActor private enum LiteImageCache {
+    static var images: [String: NSImage] = [:]
+    static func image(names: [String]) -> NSImage? {
+        for name in names {
+            if let image = images[name] { return image }
+            guard let url = Bundle.module.url(forResource: name, withExtension: "png"),
+                  let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { continue }
+            let options: [CFString: Any] = [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                // The keyboard can be 660 pt wide on a Retina display.
+                kCGImageSourceThumbnailMaxPixelSize: 1400,
+                kCGImageSourceShouldCacheImmediately: true
+            ]
+            guard let bitmap = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { continue }
+            let image = NSImage(cgImage: bitmap, size: NSSize(width: bitmap.width, height: bitmap.height))
+            images[name] = image
+            return image
+        }
+        return nil
+    }
+    static func clear() { images.removeAll(keepingCapacity: false) }
+}
+
 /// Loads a bundled PNG, trying the redesign assets first, then the original renders.
 struct LiteImage: View {
     let names: [String]
     var body: some View {
-        if let image = names.lazy.compactMap({ Bundle.module.url(forResource: $0, withExtension: "png") }).compactMap({ NSImage(contentsOf: $0) }).first {
+        if let image = LiteImageCache.image(names: names) {
             Image(nsImage: image).resizable().interpolation(.high).scaledToFit().accessibilityHidden(true)
         } else { Color.clear }
     }
+    static func clearWindowCache() { LiteImageCache.clear() }
     static let mouse = LiteImage(names: ["lite-mouse", "mx-master-3s-white", "mx-master-3s"])
     static let mouseRear = LiteImage(names: ["lite-mouse-rear", "mx-master-3s-rear-white"])
     static let keyboard = LiteImage(names: ["lite-keyboard", "mx-mechanical-mini-white", "mx-mechanical-mini"])

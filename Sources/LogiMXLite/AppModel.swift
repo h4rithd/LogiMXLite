@@ -183,6 +183,14 @@ struct DeviceViewState {
         if !accessibilityAllowed { _ = AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt":true] as CFDictionary) }
     }
     func relaunch() {
+        if CommandLine.arguments.contains("--configuration-process") {
+            DistributedNotificationCenter.default().post(
+                name: .init("com.h4rithd.LogiMXLite.reopenConfiguration"),
+                object: String(ProcessInfo.processInfo.processIdentifier)
+            )
+            quit?()
+            return
+        }
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.createsNewApplicationInstance = true; configuration.arguments = ["--settings"]
         NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { _, _ in }
@@ -457,6 +465,21 @@ struct DeviceViewState {
         for model in Model.allCases { devices[model] = DeviceViewState(); await hardware.forget(model) }
     }
     func retry() async { await suspend(); startTransport() }
+    /// The short-lived configuration process saves settings before exiting. The
+    /// resident menu-bar process reloads them before reacquiring either device.
+    func resumeAfterConfiguration() async {
+        do {
+            let loaded = try await store.load()
+            configuration = loaded
+            draft = loaded
+            selectedProfile = loaded.desktop.id
+            activeProfile = loaded.desktop.id
+            notice = "Settings loaded; reconnecting devices"
+        } catch {
+            report("Could not reload settings after configuration: \(error.localizedDescription)")
+        }
+        startTransport()
+    }
     func setLogin(_ enabled: Bool) {
         do { if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }; loginEnabled = SMAppService.mainApp.status == .enabled }
         catch { report("Launch at Login: \(error.localizedDescription)"); loginEnabled = SMAppService.mainApp.status == .enabled }

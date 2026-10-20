@@ -1,6 +1,7 @@
 import AppKit
 import IOKit.hid
 import Carbon
+import Darwin
 import SwiftUI
 import LogiCore
 
@@ -9,6 +10,15 @@ import LogiCore
         if CommandLine.arguments.contains("--stress-benchmark") {
             StressBenchmark.run()
             return
+        }
+        if CommandLine.arguments.contains("--configuration-process") {
+            let arguments = CommandLine.arguments
+            guard let index = arguments.firstIndex(of: "--parent-pid"),
+                  arguments.indices.contains(index + 1),
+                  Int32(arguments[index + 1]) == getppid() else {
+                FileHandle.standardError.write(Data("Configuration must be opened by the menu-bar agent.\n".utf8))
+                return
+            }
         }
         let app = NSApplication.shared
         let delegate = ApplicationDelegate()
@@ -23,6 +33,14 @@ import LogiCore
     private var lowBatteryItems: [Model:NSStatusItem] = [:]
     private let popover = NSPopover()
     private var window: NSWindow?
+    /// The menu-bar instance owns devices until a configuration child takes over.
+    /// Keeping the UI in a separate process lets macOS reclaim all SwiftUI memory
+    /// when its window closes, without keeping a second resident helper binary.
+    private var configurationProcess: Process?
+    private var openingConfiguration = false
+    private var reopenAfterChildExit = false
+    private var reopenObserver: NSObjectProtocol?
+    private var isConfigurationProcess: Bool { CommandLine.arguments.contains("--configuration-process") }
     private var terminating = false
     private var terminationRequested = false
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -44,10 +62,25 @@ import LogiCore
         }
         installMenus()
         let model = AppModel(); self.model = model
+        if isConfigurationProcess {
+            model.quit = { NSApplication.shared.terminate(nil) }
+            model.start()
+            openSettings()
+            return
+        }
+        reopenObserver = DistributedNotificationCenter.default().addObserver(
+            forName: .init("com.h4rithd.LogiMXLite.reopenConfiguration"), object: nil, queue: .main
+        ) { [weak self] notification in
+            let senderPID = notification.object as? String
+            Task { @MainActor [weak self] in
+                guard let self, let child = self.configurationProcess,
+                      senderPID == String(child.processIdentifier) else { return }
+                self.reopenAfterChildExit = true
+            }
+        }
         let item = NSStatusBar.system.statusItem(withLength:NSStatusItem.squareLength)
         status = item; item.button?.image = Self.mark(); item.button?.toolTip = "LogiMXLite · mouse and keyboard"; item.button?.setAccessibilityLabel("LogiMXLite devices")
         item.button?.target = self; item.button?.action = #selector(togglePopover)
-        if let url = Bundle.module.url(forResource: "lite-appicon", withExtension: "png"), let icon = NSImage(contentsOf: url) { NSApp.applicationIconImage = icon }
         popover.behavior = .transient; popover.contentViewController = NSHostingController(rootView:LiteMenuView(model:model))
         model.showSettings = { [weak self] in self?.openSettings() }
         model.quit = { NSApplication.shared.terminate(nil) }
@@ -56,7 +89,11 @@ import LogiCore
         if CommandLine.arguments.contains("--settings") { openSettings() }
         if CommandLine.arguments.contains("--smoke-test") {
             openSettings()
-            Task { try? await Task.sleep(for:.seconds(5)); print("SMOKE: statusItems=1 settingsVisible=\(window?.isVisible == true)"); NSApplication.shared.terminate(nil) }
+            Task {
+                try? await Task.sleep(for: .seconds(5))
+                print("SMOKE: statusItems=1 configurationProcessRunning=\(configurationProcess?.isRunning == true)")
+                NSApplication.shared.terminate(nil)
+            }
         }
     }
     private func installMenus() {
@@ -75,6 +112,10 @@ import LogiCore
     @objc private func openConfiguration() { openSettings() }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { openSettings(); return true }
     @objc private func togglePopover() {
+        if let child = configurationProcess, child.isRunning {
+            NSRunningApplication(processIdentifier: child.processIdentifier)?.activate()
+            return
+        }
         if popover.isShown { popover.performClose(nil) }
         else if let button = status?.button { popover.show(relativeTo:button.bounds,of:button,preferredEdge:.minY); model?.checkPermissions() }
     }
@@ -102,6 +143,47 @@ import LogiCore
     }
     private func openSettings() {
         guard let model else { return }; popover.performClose(nil)
+        if !isConfigurationProcess {
+            if let process = configurationProcess, process.isRunning {
+                NSRunningApplication(processIdentifier: process.processIdentifier)?.activate()
+                return
+            }
+            guard !openingConfiguration else { return }
+            openingConfiguration = true
+            let requestedPage = model.requestedPage
+            Task { [self] in
+                // Only one process may own the HID++ vendor reports and temporary
+                // control diversion. Await full restoration before launching the UI.
+                await model.suspend()
+                guard !terminating else { openingConfiguration = false; return }
+                let child = Process()
+                child.executableURL = Bundle.main.executableURL
+                child.arguments = ["--configuration-process", "--parent-pid", String(ProcessInfo.processInfo.processIdentifier)]
+                    + (requestedPage.map { ["--page", $0.rawValue] } ?? [])
+                child.terminationHandler = { [weak self] _ in
+                    Task { @MainActor [weak self] in
+                        guard let self else { return }
+                        self.configurationProcess = nil
+                        guard !self.terminating else { return }
+                        if self.reopenAfterChildExit {
+                            self.reopenAfterChildExit = false
+                            self.openSettings()
+                        } else {
+                            await self.model?.resumeAfterConfiguration()
+                        }
+                    }
+                }
+                do {
+                    try child.run()
+                    configurationProcess = child
+                } catch {
+                    model.report("Could not open configuration: \(error.localizedDescription)")
+                    await model.resumeAfterConfiguration()
+                }
+                openingConfiguration = false
+            }
+            return
+        }
         if window == nil {
             let w = NSWindow(contentRect:NSRect(x:0,y:0,width:1380,height:820),styleMask:[.titled,.closable,.miniaturizable,.fullSizeContentView],backing:.buffered,defer:false)
             w.titlebarAppearsTransparent = true; w.titleVisibility = .hidden; w.isMovableByWindowBackground = true
@@ -118,12 +200,34 @@ import LogiCore
     func windowWillClose(_ notification: Notification) {
         window?.contentView = nil
         window = nil
+        LiteImage.clearWindowCache()
+        if isConfigurationProcess {
+            NSApplication.shared.terminate(nil)
+        }
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard !terminating else { return .terminateNow }; terminating = true
         popover.performClose(nil)
         Task {
+            if isConfigurationProcess, let model {
+                // A Save or Import task may still be writing atomically when the
+                // user closes the window immediately after clicking its button.
+                for _ in 0..<100 where model.busy {
+                    try? await Task.sleep(for: .milliseconds(100))
+                }
+            }
+            if let child = configurationProcess, child.isRunning {
+                _ = NSRunningApplication(processIdentifier: child.processIdentifier)?.terminate()
+                for _ in 0..<50 where child.isRunning {
+                    try? await Task.sleep(for: .milliseconds(200))
+                }
+                if child.isRunning { child.terminate() }
+            }
             await model?.shutdown()
+            if let reopenObserver {
+                DistributedNotificationCenter.default().removeObserver(reopenObserver)
+                self.reopenObserver = nil
+            }
             if let status { NSStatusBar.system.removeStatusItem(status) }
             for item in lowBatteryItems.values { NSStatusBar.system.removeStatusItem(item) }
             lowBatteryItems.removeAll()
