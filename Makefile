@@ -1,11 +1,9 @@
-.PHONY: build run test security-check package clean diagnose smoke benchmark
+.PHONY: build run security-check package clean diagnose smoke benchmark
 build:
 	swift build
 run: package
 	open dist/LogiMXLite.app
 
-test:
-	swift test
 security-check:
 	bash scripts/security-check.sh
 package:

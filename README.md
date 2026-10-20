@@ -58,13 +58,13 @@ The benchmark runs the app's core state machines without Bluetooth I/O, event in
 Requires Xcode command-line tools with Swift 6. Packaging currently produces **arm64 only**.
 
 ```sh
-swift test                 # 39 automated tests
+swift build                # compile the production targets
 make package               # app, unsigned PKG, ZIP, and DMG in dist/
 make smoke                 # opens and closes a test configuration window
 make benchmark             # repeatable 100-million-cycle core workload
 ```
 
-The 1.2.0 app bundle passed `codesign --verify --strict`; the DMG verified and the PKG expanded with the app executable present. `pkgbuild` emitted local provenance-metadata warnings even though the package expanded successfully; signing and notarization require the maintainer's Apple Developer credentials. See the [security audit](docs/SECURITY_AUDIT_2026-10-20.md) for details.
+The 1.2.0 app bundle passed `codesign --verify --strict`; the DMG verified and the PKG expanded with the app executable present. The 39 Swift tests passed before their source folder was removed at the owner's request because tests are not part of the installed app. This repository now contains production targets only, so `swift test` is no longer an available verification step. `pkgbuild` emitted local provenance-metadata warnings even though the package expanded successfully; signing and notarization require the maintainer's Apple Developer credentials. See the [security audit](docs/SECURITY_AUDIT_2026-10-20.md) for details.
 
 ## Privacy and project notes
 

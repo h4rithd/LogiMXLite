@@ -2,7 +2,7 @@
 
 ## 1.2.0 release verification
 
-On 2026-10-20, `swift test` passed all 39 tests. The arm64 app built and passed `codesign --verify --strict`; the DMG verified and the unsigned PKG expanded with the executable present. The installed 1.2.0 binary matched the packaged binary by SHA-256 and the live overview showed both supported devices connected. This is not a full physical-control acceptance test.
+On 2026-10-20, `swift test` passed all 39 tests before the test sources and test target were removed at the owner's request; that command is no longer available in the current source tree. The arm64 app built and passed `codesign --verify --strict`; the DMG verified and the unsigned PKG expanded with the executable present. The installed 1.2.0 binary matched the packaged binary by SHA-256 and the live overview showed both supported devices connected. This is not a full physical-control acceptance test.
 
 On an Apple M4 Mac with 24 GB RAM and macOS 27.0.1, ten `top` samples over roughly 20 seconds showed the connected GUI process at 71 MB and 0.0–0.7% CPU (mostly 0.6%). A separate headless 1.2.0 process ran 100 million deterministic button, gesture and scroll-state cycles in 9.403 seconds of loop time: `/usr/bin/time -l` measured 9.76 seconds wall, 9.34 seconds user CPU, 0.05 seconds system CPU, and 7,733,248 bytes maximum resident set size. That benchmark does not exercise Bluetooth, macOS input injection, or UI rendering. See the README for interpretation.
 

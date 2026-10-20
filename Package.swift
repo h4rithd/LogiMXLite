@@ -5,6 +5,5 @@ let package = Package(name: "LogiMXLite", platforms: [.macOS(.v15)], products: [
     .executable(name: "LogiMXLite", targets: ["LogiMXLite"])
 ], targets: [
     .target(name: "LogiCore"),
-    .executableTarget(name: "LogiMXLite", dependencies: ["LogiCore"], resources: [.process("Resources")]),
-    .testTarget(name: "LogiCoreTests", dependencies: ["LogiCore"])
+    .executableTarget(name: "LogiMXLite", dependencies: ["LogiCore"], resources: [.process("Resources")])
 ], swiftLanguageModes: [.v6])
