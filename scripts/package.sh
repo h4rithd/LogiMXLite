@@ -21,8 +21,8 @@ cp scripts/Info.plist "$app/Contents/Info.plist"
 cp LICENSE "$app/Contents/Resources/LICENSE.txt"
 cp docs/THIRD_PARTY_NOTICES.md "$app/Contents/Resources/THIRD_PARTY_NOTICES.txt"
 # macOS uses the ICNS for Finder, Launch Services, the Dock and Installer's
-# installed-app presentation. The 36px PNG is only decoded by the menu-bar
-# agent; loading the 1024px source at launch previously cost ~32 MB.
+# installed-app presentation. The menu bar keeps its original vector symbol;
+# loading the 1024px source at launch previously cost ~32 MB.
 icon_source="Sources/LogiMXLite/Resources/lite-appicon.png"
 iconset="$(mktemp -d)/LogiMXLite.iconset"
 mkdir -p "$iconset"
@@ -33,7 +33,6 @@ for points in 16 32 128 256 512; do
 done
 iconutil --convert icns "$iconset" --output "$app/Contents/Resources/LogiMXLite.icns"
 rm -rf "$(dirname "$iconset")"
-sips -s format png -z 36 36 "$icon_source" --out "$app/Contents/Resources/StatusIcon.png" >/dev/null
 # Ad-hoc signature with an identifier-based requirement, so permission grants survive rebuilds.
 # Not Developer ID signed or notarized: other Macs must allow it once (see README).
 codesign --force --deep --sign - --identifier com.h4rithd.LogiMXLite -r='designated => identifier "com.h4rithd.LogiMXLite"' "$app"

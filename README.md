@@ -11,7 +11,7 @@ The packaged build runs on **Apple M-series Macs (arm64) with macOS 15 or later*
 
 LogiMXLite is an independent project by Harith Dilshan. It is not affiliated with Logitech.
 
-The supplied LogiMXLite icon is used for the installed app in Finder and for the Dock while the configuration window is open. A 36-pixel version appears in the menu bar, so the resident device process never decodes the full-size icon at launch.
+The supplied LogiMXLite icon is used for the installed app in Finder and for the Dock while the configuration window is open. The menu bar retains its original monochrome mouse-and-keyboard symbol; the resident device process never decodes the full-size icon at launch.
 
 ## Screenshots
 
@@ -25,8 +25,8 @@ The images below are captures of the running macOS app, not design mockups. Batt
 
 ## Install
 
-1. Download [LogiMXLite 1.2.2.pkg](https://github.com/h4rithd/LogiMXLite/releases/download/v1.2.2/LogiMXLite-1.2.2.pkg) from the [Releases page](https://github.com/h4rithd/LogiMXLite/releases).
-2. Check its SHA-256 if you want to verify the download: `3662602221232b69e875da371c4c0be5d5f666fa94ae38f89ea77182e889670e`.
+1. Download [LogiMXLite 1.2.3.pkg](https://github.com/h4rithd/LogiMXLite/releases/download/v1.2.3/LogiMXLite-1.2.3.pkg) from the [Releases page](https://github.com/h4rithd/LogiMXLite/releases).
+2. Check its SHA-256 if you want to verify the download: `8e41478e9e19b76c628cb01ba83ce1e8a828b939c5d35aa023f04bfea473887b`.
 3. Open the package and launch **LogiMXLite** from Applications. This locally built package is **unsigned and not notarized**; the app inside is ad-hoc signed. macOS may require **Control-click → Open** on first launch. The package does not establish a verified publisher identity.
 4. Pair both supported devices in macOS Bluetooth settings, select this Mac on each Easy-Switch control, and grant **Input Monitoring** and **Accessibility** to LogiMXLite in System Settings → Privacy & Security. Relaunch after granting access.
 5. Quit Logi Options+ or another tool that diverts the same controls before enabling mappings. The Settings screen shows permission and conflict status.
@@ -50,6 +50,8 @@ Host names for other Easy-Switch channels appear only when the device provides v
 
 Measured on an **Apple M4 Mac, 24 GB RAM, macOS 27.0.1**, using the 1.2.1 arm64 build. These are local samples, not a claim that LogiMXLite matches Options+ latency or power use. Memory below uses macOS `footprint`/`top` physical footprint; RSS shown by `ps` includes shared mapped pages and is not directly comparable.
 
+A separate 1.2.3 spot check measured **15 MB** after a fresh launch with the status dropdown unopened, and **22 MB** after opening and closing it. The dropdown's SwiftUI allocation stayed in the process allocator after close; this observation does not establish a continuing leak. The original monochrome status symbol is retained. Removing just the status icon would save little; a UI-free agent would require moving configuration access, battery display, and quit controls elsewhere.
+
 | Workload | CPU | Memory | Method |
 |---|---:|---:|---|
 | Connected resident device process, Configuration closed | **0.0–0.4%** of one CPU core over 10 samples / ~20 seconds | **16–17 MB** | `top -l 10 -s 2 -pid <pid> -stats pid,cpu,mem`; `footprint -p <pid>` |
@@ -70,7 +72,7 @@ make smoke                 # opens and closes a test configuration window
 make benchmark             # repeatable 100-million-cycle core workload
 ```
 
-The 1.2.2 app bundle passed `codesign --verify --strict`; the PKG payload includes the multi-resolution icon and menu-bar image. The configuration-process smoke test passed, and the installed app's resident process still measured 16 MB with its window open. The 39 Swift tests passed before their source folder was removed at the owner's request because tests are not part of the installed app. This repository now contains production targets only, so `swift test` is no longer an available verification step. `pkgbuild` emitted local provenance-metadata warnings even though the package expanded successfully; signing and notarization require the maintainer's Apple Developer credentials. See the [security audit](docs/SECURITY_AUDIT_2026-10-20.md) for details.
+The 1.2.3 app bundle passed `codesign --verify --strict`; the PKG payload includes the multi-resolution Finder/Dock icon and excludes the short-lived color status image. The original monochrome status symbol and its dropdown were visually checked in the installed app, the DMG verified, and packaged/installed executable hashes matched. The 39 Swift tests passed before their source folder was removed at the owner's request because tests are not part of the installed app. This repository now contains production targets only, so `swift test` is no longer an available verification step. `pkgbuild` emitted local provenance-metadata warnings even though the package expanded successfully; signing and notarization require the maintainer's Apple Developer credentials. See the [security audit](docs/SECURITY_AUDIT_2026-10-20.md) for details.
 
 ## Privacy and project notes
 

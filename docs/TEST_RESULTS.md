@@ -1,5 +1,9 @@
 # Test results
 
+## 1.2.3 status icon and idle-memory check
+
+On 2026-10-21, the original template-drawn mouse-and-keyboard symbol was visually confirmed in the installed menu bar. The Finder/Dock `.icns` remained packaged and the temporary `StatusIcon.png` was absent. The SwiftUI dropdown opened from the status item after its view was made lazy. `footprint -p` measured 15 MB immediately after a fresh launch and 22 MB after opening and closing the dropdown; five idle `top` samples showed 0.0% CPU before opening it. This is one open/close cycle, not a long-duration leak test. The arm64 build and app signature verified, the DMG verified, the PKG contained the app icon, and installed and packaged executable SHA-256 values matched. The PKG remains unsigned and unnotarized.
+
 ## 1.2.2 application icon verification
 
 On 2026-10-21, the arm64 app and PKG/DMG/ZIP built with a multi-resolution `LogiMXLite.icns` generated from the supplied 1024-pixel PNG. `iconutil` extracted all ten expected iconset variants, `CFBundleIconFile` resolved in the installed app, and `NSWorkspace` returned the installed app icon. The resident process used the packaged 36-pixel menu-bar image; its physical footprint was 16 MB both with the configuration process open and after it closed. The configuration child reported regular activation policy, so its installed app icon appears in the Dock; the menu-bar agent remained accessory-only. `codesign --verify --strict`, DMG verification, PKG payload inspection, matching packaged/installed executable hashes, and the five-second configuration-process smoke test passed. The PKG remains unsigned and unnotarized.

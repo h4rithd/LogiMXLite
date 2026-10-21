@@ -29,7 +29,7 @@ import LogiCore
         withExtendedLifetime(delegate) { app.run() }
     }
 }
-@MainActor final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+@MainActor final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPopoverDelegate {
     private var model: AppModel?
     private var status: NSStatusItem?
     private var lowBatteryItems: [Model:NSStatusItem] = [:]
@@ -76,7 +76,8 @@ import LogiCore
         let item = NSStatusBar.system.statusItem(withLength:NSStatusItem.squareLength)
         status = item; item.button?.image = Self.mark(); item.button?.toolTip = "LogiMXLite · mouse and keyboard"; item.button?.setAccessibilityLabel("LogiMXLite devices")
         item.button?.target = self; item.button?.action = #selector(togglePopover)
-        popover.behavior = .transient; popover.contentViewController = NSHostingController(rootView:LiteMenuView(model:model))
+        // Build the SwiftUI menu only when opened, not in the idle device agent.
+        popover.behavior = .transient; popover.delegate = self
         model.showSettings = { [weak self] in self?.openSettings() }
         model.quit = { NSApplication.shared.terminate(nil) }
         model.onDeviceStatusChange = { [weak self] in self?.updateBatteryItems() }
@@ -112,8 +113,13 @@ import LogiCore
             return
         }
         if popover.isShown { popover.performClose(nil) }
-        else if let button = status?.button { popover.show(relativeTo:button.bounds,of:button,preferredEdge:.minY); model?.checkPermissions() }
+        else if let button = status?.button, let model {
+            popover.contentViewController = NSHostingController(rootView:LiteMenuView(model:model))
+            popover.show(relativeTo:button.bounds,of:button,preferredEdge:.minY)
+            model.checkPermissions()
+        }
     }
+    func popoverDidClose(_ notification: Notification) { popover.contentViewController = nil }
     private func updateBatteryItems() {
         guard let model else { return }
         for device in Model.allCases {
@@ -239,12 +245,6 @@ import LogiCore
         sender.terminate(nil)
     }
     static func mark() -> NSImage {
-        if let url = Bundle.main.url(forResource: "StatusIcon", withExtension: "png"),
-           let image = NSImage(contentsOf: url) {
-            image.size = NSSize(width: 18, height: 18)
-            return image
-        }
-        // SwiftPM command-line development builds do not have the packaged icon.
         let image = NSImage(size:NSSize(width:22,height:22),flipped:false) { _ in
             NSColor.labelColor.setStroke()
             let keyboard = NSBezierPath(roundedRect:NSRect(x:1,y:4,width:13,height:10),xRadius:2,yRadius:2); keyboard.lineWidth=1.4; keyboard.stroke()
