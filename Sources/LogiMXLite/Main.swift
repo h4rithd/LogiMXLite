@@ -11,6 +11,16 @@ import LogiCore
             StressBenchmark.run()
             return
         }
+        if let index = CommandLine.arguments.firstIndex(of: "--wait-for-agent-exit"),
+           CommandLine.arguments.indices.contains(index + 1),
+           let formerPID = Int32(CommandLine.arguments[index + 1]) {
+            // Do not open HID endpoints until the previous agent exits.
+            for _ in 0..<200 where getppid() == formerPID { usleep(100_000) }
+            guard getppid() != formerPID else {
+                FileHandle.standardError.write(Data("Timed out waiting for the previous agent.\n".utf8))
+                return
+            }
+        }
         if CommandLine.arguments.contains("--configuration-process") {
             let arguments = CommandLine.arguments
             guard let index = arguments.firstIndex(of: "--parent-pid"),
@@ -176,6 +186,19 @@ import LogiCore
             }
         }
     }
+    private func launchHeadlessSuccessor() -> Bool {
+        guard let executable = Bundle.main.executableURL else { return false }
+        let successor = Process()
+        successor.executableURL = executable
+        successor.arguments = ["--wait-for-agent-exit", String(ProcessInfo.processInfo.processIdentifier)]
+        do {
+            try successor.run()
+            return true
+        } catch {
+            model?.report("Could not restart headless agent: \(error.localizedDescription)")
+            return false
+        }
+    }
     private func openSettings() {
         guard let model else { return }; popover?.performClose(nil)
         if !isConfigurationProcess {
@@ -207,8 +230,16 @@ import LogiCore
                         } else if reopen {
                             self.openSettings()
                         } else {
+                            let wasShowingStatus = self.model?.showMenuBarIcon == true
                             self.syncStatusPresentation()
-                            await self.model?.resumeAfterConfiguration()
+                            if wasShowingStatus && self.model?.showMenuBarIcon == false,
+                               self.launchHeadlessSuccessor() {
+                                // Restart once so the disabled status UI leaves
+                                // no long-lived AppKit allocations behind.
+                                NSApplication.shared.terminate(nil)
+                            } else {
+                                await self.model?.resumeAfterConfiguration()
+                            }
                         }
                     }
                 }

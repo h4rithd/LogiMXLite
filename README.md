@@ -25,13 +25,13 @@ The images below are captures of the running macOS app, not design mockups. Batt
 
 ## Install
 
-1. Download [LogiMXLite 1.2.4.pkg](https://github.com/h4rithd/LogiMXLite/releases/download/v1.2.4/LogiMXLite-1.2.4.pkg) from the [Releases page](https://github.com/h4rithd/LogiMXLite/releases).
-2. Check its SHA-256 if you want to verify the download: `2ac4728e04a58ebf18071ce360832718bf11cd095d240b087e62d1caa3788940`.
+1. Download [LogiMXLite 1.2.5.pkg](https://github.com/h4rithd/LogiMXLite/releases/download/v1.2.5/LogiMXLite-1.2.5.pkg) from the [Releases page](https://github.com/h4rithd/LogiMXLite/releases).
+2. Check its SHA-256 if you want to verify the download: `d67ae45f8d710594eef8e34d3706861f53f31a308d82b02b63def18ee9d21ddc`.
 3. Open the package and launch **LogiMXLite** from Applications. This locally built package is **unsigned and not notarized**; the app inside is ad-hoc signed. macOS may require **Control-click → Open** on first launch. The package does not establish a verified publisher identity.
 4. Pair both supported devices in macOS Bluetooth settings, select this Mac on each Easy-Switch control, and grant **Input Monitoring** and **Accessibility** to LogiMXLite in System Settings → Privacy & Security. Relaunch after granting access.
 5. Quit Logi Options+ or another tool that diverts the same controls before enabling mappings. The Settings screen shows permission and conflict status.
 
-By default, the agent shows a menu-bar icon for battery and connection status. In **Settings → General**, turn off **Show menu-bar icon** to run without menu-bar UI or background battery/status polling. Mouse and keyboard mappings remain active. The change takes effect after closing Configuration. Open LogiMXLite again from Applications to change settings or quit the background agent; the Settings page has a **Quit LogiMXLite** button. Launch at Login is a separate option. Settings are stored locally in `~/Library/Application Support/LogiMXLite/` with private file permissions; the menu-bar preference is stored in local macOS preferences.
+By default, the agent shows a menu-bar icon for battery and connection status. In **Settings → General**, turn off **Show menu-bar icon** to run without menu-bar UI or background battery/status polling. Mouse and keyboard mappings remain active. After Configuration closes, the agent restarts once to release memory allocated by the status UI; custom mappings pause briefly during this handoff. Open LogiMXLite again from Applications to change settings or quit the background agent; the Settings page has a **Quit LogiMXLite** button. Launch at Login is a separate option. Settings are stored locally in `~/Library/Application Support/LogiMXLite/` with private file permissions; the menu-bar preference is stored in local macOS preferences.
 
 The resident agent handles device input. Opening Configuration starts a separate, short-lived process of the **same signed app**. The resident instance releases HID ownership first; the configuration process owns the devices while you edit, then exits when its window closes. The resident instance reloads saved settings and reconnects. This handoff briefly pauses custom mappings; avoid holding a gesture while opening or closing Configuration. No helper daemon, cloud service, or second permission identity is installed. See the [process architecture](docs/MEMORY_ARCHITECTURE.md).
 
@@ -51,6 +51,8 @@ Host names for other Easy-Switch channels appear only when the device provides v
 Measured on an **Apple M4 Mac, 24 GB RAM, macOS 27.0.1**, using the 1.2.1 arm64 build. These are local samples, not a claim that LogiMXLite matches Options+ latency or power use. Memory below uses macOS `footprint`/`top` physical footprint; RSS shown by `ps` includes shared mapped pages and is not directly comparable.
 
 A separate 1.2.4 spot check measured **9.1 MB** physical footprint with the menu-bar switch off after a fresh launch and **13 MB** with it on after a configuration cycle. The headless process had no accessible menu bar and sampled **0.0% CPU** in five idle `top` samples. After switching the icon off without restarting, the allocator retained about **13 MB** until relaunch; the configuration process itself exited and freed its memory. Both supported devices were offline during this particular spot check, so these numbers do not establish power use or latency during live input.
+
+In a 1.2.5 check, the existing agent still occupied **20 MB** after the icon was hidden because AppKit and allocator pages remained charged to that long-running process. The new switch-off handoff exited that process and started one headless successor. The successor measured **9.4 MB** physical footprint with zero accessible menu bars; after reopening and closing Configuration, it measured **9.9 MB** with only the agent process remaining. These are short, local observations rather than a long-term memory guarantee. `ps` RSS was higher than `footprint` because the metrics account for mapped/shared/compressed memory differently.
 
 | Workload | CPU | Memory | Method |
 |---|---:|---:|---|
@@ -72,7 +74,7 @@ make smoke                 # opens and closes a test configuration window
 make benchmark             # repeatable 100-million-cycle core workload
 ```
 
-The 1.2.4 app bundle passed `codesign --verify --strict`. The installed app was checked with the switch both off and on: the menu-bar item disappeared and returned after closing Configuration, opening from Applications worked in headless mode, and Quit from Settings stopped both processes. The 39 Swift tests passed before their source folder was removed at the owner's request because tests are not part of the installed app. This repository now contains production targets only, so `swift test` is no longer an available verification step. `pkgbuild` emits local provenance-metadata warnings and AppleDouble metadata entries; signing and notarization require the maintainer's Apple Developer credentials. See the [security audit](docs/SECURITY_AUDIT_2026-10-20.md) for details.
+The 1.2.5 app bundle passed `codesign --verify --strict`. The installed app was checked with the switch both off and on: the menu-bar item disappeared and returned after closing Configuration, switching off replaced the old agent with one lower-memory headless process, and opening from Applications still worked in headless mode. The 39 Swift tests passed before their source folder was removed at the owner's request because tests are not part of the installed app. This repository now contains production targets only, so `swift test` is no longer an available verification step. `pkgbuild` emits local provenance-metadata warnings and AppleDouble metadata entries; signing and notarization require the maintainer's Apple Developer credentials. See the [security audit](docs/SECURITY_AUDIT_2026-10-20.md) for details.
 
 ## Privacy and project notes
 
