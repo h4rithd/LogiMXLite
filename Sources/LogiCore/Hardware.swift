@@ -105,7 +105,9 @@ public actor Hardware {
     public func forget(_ model: Model) async {
         await gate.acquire(); snapshots.removeValue(forKey:model); priorReporting.removeValue(forKey:model); await gate.release()
     }
-    public func probe(_ model: Model) async throws -> HardwareSnapshot {
+    /// Status metadata is optional for the resident agent. Device controls and
+    /// live hardware state are still read so mappings work without any UI.
+    public func probe(_ model: Model, includeStatus: Bool = true) async throws -> HardwareSnapshot {
         try await transaction {
             var state = HardwareSnapshot()
             let ping = try await call(model,0,1,[0,0,0x5A])
@@ -122,7 +124,7 @@ public actor Hardware {
                 state.features[id] = FeatureInfo(id:id,index:UInt8(n),version:row[3],flags:row[2])
             }
             snapshots[model] = state
-            if let f = state.features[0x0003] {
+            if includeStatus, let f = state.features[0x0003] {
                 do {
                     let info = try await call(model,f.index,0)
                     guard let count = info.first, count <= 8 else { throw HIDError.malformed }
@@ -135,7 +137,7 @@ public actor Hardware {
                     }
                 } catch { state.issues.append("Firmware metadata: \(error.localizedDescription)") }
             }
-            if let f = state.features[0x1004] {
+            if includeStatus, let f = state.features[0x1004] {
                 do {
                     let caps = try await call(model,f.index,0)
                     let b = try await call(model,f.index,1)
@@ -145,7 +147,7 @@ public actor Hardware {
                     }
                 } catch { state.issues.append("Battery: \(error.localizedDescription)") }
             }
-            if let f = state.features[0x1814] {
+            if includeStatus, let f = state.features[0x1814] {
                 do {
                     let hosts = try await call(model, f.index, 0)
                     if hosts.count >= 2, (1...3).contains(hosts[0]), hosts[1] < hosts[0] {
@@ -154,7 +156,7 @@ public actor Hardware {
                     } else { throw HIDError.malformed }
                 } catch { state.issues.append("Easy-Switch: \(error.localizedDescription)") }
             }
-            if let f = state.features[0x1815], f.version >= 2 {
+            if includeStatus, let f = state.features[0x1815], f.version >= 2 {
                 do {
                     let info = try await call(model, f.index, 0)
                     guard info.count >= 4, (1...3).contains(info[2]) else { throw HIDError.malformed }

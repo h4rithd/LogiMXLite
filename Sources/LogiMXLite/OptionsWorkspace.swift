@@ -1106,6 +1106,9 @@ struct OptionsWorkspace: View {
                 row("Launch at Login", "May need approval in System Settings and can be rejected for an ad-hoc development build. Actual status and errors are shown.", divider: false) {
                     Toggle("", isOn: Binding(get: { model.loginEnabled }, set: model.setLogin)).labelsHidden().toggleStyle(.switch).tint(Lite.green)
                 }
+                row("Show menu-bar icon", "Off keeps mappings active without battery/status polling. Reopen LogiMXLite from Applications to change settings. Applies when this window closes.", divider: false) {
+                    Toggle("", isOn: $model.showMenuBarIcon).labelsHidden().toggleStyle(.switch).tint(Lite.green)
+                }
             }
             group("Permissions & recovery") {
                 row("Input Monitoring", "Grants access to BLE vendor reports.") {
@@ -1133,6 +1136,10 @@ struct OptionsWorkspace: View {
                     }
                     toggleRow("Enable mappings automatically when devices are ready", $model.autoEnableMappings)
                 }.padding(.vertical, 16)
+            }
+            HStack {
+                Spacer()
+                GlassButton(title: "Quit LogiMXLite") { model.quitAgent?() }
             }
         }
     }

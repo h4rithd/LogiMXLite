@@ -33,7 +33,8 @@ import LogiCore
     private var model: AppModel?
     private var status: NSStatusItem?
     private var lowBatteryItems: [Model:NSStatusItem] = [:]
-    private let popover = NSPopover()
+    /// The headless agent never allocates a popover or a status item.
+    private var popover: NSPopover?
     private var window: NSWindow?
     /// The menu-bar instance owns devices until a configuration child takes over.
     /// Keeping the UI in a separate process lets macOS reclaim all SwiftUI memory
@@ -41,6 +42,7 @@ import LogiCore
     private var configurationProcess: Process?
     private var openingConfiguration = false
     private var relaunchConfigurationRequested = false
+    private var quitAgentRequested = false
     private var isConfigurationProcess: Bool { CommandLine.arguments.contains("--configuration-process") }
     private var terminating = false
     private var terminationRequested = false
@@ -61,10 +63,16 @@ import LogiCore
             Task { executor.perform(action); try? await Task.sleep(for: .milliseconds(80)); executor.perform(action, down: false); try? await Task.sleep(for: .milliseconds(400)); print("PERFORMED \(kind.rawValue)"); NSApplication.shared.terminate(nil) }
             return
         }
-        installMenus()
+        // The resident process has no application menu; configuration owns the
+        // normal menu and keyboard shortcuts while its window is open.
+        if isConfigurationProcess { installMenus() }
         let model = AppModel(); self.model = model
         if isConfigurationProcess {
             model.quit = { NSApplication.shared.terminate(nil) }
+            model.quitAgent = { [weak self] in
+                self?.quitAgentRequested = true
+                NSApplication.shared.terminate(nil)
+            }
             model.requestRelaunch = { [weak self] in
                 self?.relaunchConfigurationRequested = true
                 NSApplication.shared.terminate(nil)
@@ -73,14 +81,9 @@ import LogiCore
             openSettings()
             return
         }
-        let item = NSStatusBar.system.statusItem(withLength:NSStatusItem.squareLength)
-        status = item; item.button?.image = Self.mark(); item.button?.toolTip = "LogiMXLite · mouse and keyboard"; item.button?.setAccessibilityLabel("LogiMXLite devices")
-        item.button?.target = self; item.button?.action = #selector(togglePopover)
-        // Build the SwiftUI menu only when opened, not in the idle device agent.
-        popover.behavior = .transient; popover.delegate = self
         model.showSettings = { [weak self] in self?.openSettings() }
         model.quit = { NSApplication.shared.terminate(nil) }
-        model.onDeviceStatusChange = { [weak self] in self?.updateBatteryItems() }
+        syncStatusPresentation()
         model.start()
         if CommandLine.arguments.contains("--settings") { openSettings() }
         if CommandLine.arguments.contains("--smoke-test") {
@@ -112,16 +115,47 @@ import LogiCore
             NSRunningApplication(processIdentifier: child.processIdentifier)?.activate()
             return
         }
-        if popover.isShown { popover.performClose(nil) }
+        if popover?.isShown == true { popover?.performClose(nil) }
         else if let button = status?.button, let model {
+            guard let popover else { return }
             popover.contentViewController = NSHostingController(rootView:LiteMenuView(model:model))
             popover.show(relativeTo:button.bounds,of:button,preferredEdge:.minY)
             model.checkPermissions()
         }
     }
-    func popoverDidClose(_ notification: Notification) { popover.contentViewController = nil }
+    func popoverDidClose(_ notification: Notification) { popover?.contentViewController = nil }
+    private func syncStatusPresentation() {
+        guard let model, !isConfigurationProcess else { return }
+        model.reloadMenuBarPreference()
+        if model.showMenuBarIcon {
+            if status == nil {
+                let item = NSStatusBar.system.statusItem(withLength:NSStatusItem.squareLength)
+                status = item
+                item.button?.image = Self.mark()
+                item.button?.toolTip = "LogiMXLite · mouse and keyboard"
+                item.button?.setAccessibilityLabel("LogiMXLite devices")
+                item.button?.target = self
+                item.button?.action = #selector(togglePopover)
+            }
+            if popover == nil {
+                let menu = NSPopover()
+                menu.behavior = .transient
+                menu.delegate = self
+                popover = menu
+            }
+            model.onDeviceStatusChange = { [weak self] in self?.updateBatteryItems() }
+            updateBatteryItems()
+        } else {
+            model.onDeviceStatusChange = nil
+            popover?.performClose(nil)
+            popover = nil
+            if let status { NSStatusBar.system.removeStatusItem(status); self.status = nil }
+            for item in lowBatteryItems.values { NSStatusBar.system.removeStatusItem(item) }
+            lowBatteryItems.removeAll()
+        }
+    }
     private func updateBatteryItems() {
-        guard let model else { return }
+        guard let model, status != nil, model.showMenuBarIcon else { return }
         for device in Model.allCases {
             let state = model.devices[device]
             let percentage = state?.snapshot.battery
@@ -143,7 +177,7 @@ import LogiCore
         }
     }
     private func openSettings() {
-        guard let model else { return }; popover.performClose(nil)
+        guard let model else { return }; popover?.performClose(nil)
         if !isConfigurationProcess {
             if let process = configurationProcess, process.isRunning {
                 NSRunningApplication(processIdentifier: process.processIdentifier)?.activate()
@@ -163,13 +197,17 @@ import LogiCore
                     + (requestedPage.map { ["--page", $0.rawValue] } ?? [])
                 child.terminationHandler = { [weak self] process in
                     let reopen = process.terminationReason == .exit && process.terminationStatus == 42
+                    let quitAgent = process.terminationReason == .exit && process.terminationStatus == 43
                     Task { @MainActor [weak self] in
                         guard let self else { return }
                         self.configurationProcess = nil
                         guard !self.terminating else { return }
-                        if reopen {
+                        if quitAgent {
+                            NSApplication.shared.terminate(nil)
+                        } else if reopen {
                             self.openSettings()
                         } else {
+                            self.syncStatusPresentation()
                             await self.model?.resumeAfterConfiguration()
                         }
                     }
@@ -208,7 +246,7 @@ import LogiCore
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard !terminating else { return .terminateNow }; terminating = true
-        popover.performClose(nil)
+        popover?.performClose(nil)
         Task {
             if isConfigurationProcess, let model {
                 // A Save or Import task may still be writing atomically when the
@@ -242,6 +280,7 @@ import LogiCore
         guard !terminationRequested else { return }
         terminationRequested = true
         if isConfigurationProcess && relaunchConfigurationRequested { Darwin.exit(42) }
+        if isConfigurationProcess && quitAgentRequested { Darwin.exit(43) }
         sender.terminate(nil)
     }
     static func mark() -> NSImage {
@@ -274,7 +313,7 @@ import LogiCore
         Task {
             try? await Task.sleep(for:.seconds(3))
             for m in Model.allCases {
-                do { _ = try await hardware.probe(m); print("\(m.name): released controls \(await hardware.clearStale(m))") }
+                do { _ = try await hardware.probe(m, includeStatus: false); print("\(m.name): released controls \(await hardware.clearStale(m))") }
                 catch { print("\(m.name): \(error.localizedDescription)") }
             }
             await transport.stop(); NSApplication.shared.terminate(nil)

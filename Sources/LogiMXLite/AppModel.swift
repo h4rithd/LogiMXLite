@@ -35,6 +35,14 @@ struct DeviceViewState {
     @Published var autoEnableMappings = UserDefaults.standard.object(forKey: "autoEnableMappings") as? Bool ?? true {
         didSet { UserDefaults.standard.set(autoEnableMappings, forKey: "autoEnableMappings"); if autoEnableMappings { autoEnableIfReady() } }
     }
+    /// Local app preference. The configuration child always reads status while
+    /// open; the resident agent does so only when the menu-bar icon is enabled.
+    @Published var showMenuBarIcon = UserDefaults.standard.object(forKey: "showMenuBarIcon") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(showMenuBarIcon, forKey: "showMenuBarIcon"); configureBatteryPolling() }
+    }
+    private var statusReadbackEnabled: Bool {
+        CommandLine.arguments.contains("--configuration-process") || showMenuBarIcon
+    }
     private let transport = IOHIDTransport()
     private let hardware: Hardware
     private let store: SettingsStore
@@ -53,6 +61,7 @@ struct DeviceViewState {
     private var mappingWorker: Task<Void,Never>?
     var showSettings: (() -> Void)?
     var quit: (() -> Void)?
+    var quitAgent: (() -> Void)?
     var requestRelaunch: (() -> Void)?
     var onDeviceStatusChange: (() -> Void)?
     init() {
@@ -103,15 +112,25 @@ struct DeviceViewState {
             DistributedNotificationCenter.default().addObserver(forName:.init("SwipeScrollDirectionDidChangeNotification"),object:nil,queue:.main) { [weak self] _ in Task { @MainActor in self?.activate() } }
             observers.append(center.addObserver(forName:NSWorkspace.willSleepNotification,object:nil,queue:.main) { [weak self] _ in Task { @MainActor in await self?.suspend() } })
             observers.append(center.addObserver(forName:NSWorkspace.didWakeNotification,object:nil,queue:.main) { [weak self] _ in Task { @MainActor in await self?.retry() } })
-            batteryTask = Task { [weak self] in
-                while !Task.isCancelled {
-                    do { try await Task.sleep(for:.seconds(300)) } catch { return }
-                    guard let self, !self.shuttingDown else { return }
-                    // Full read-only refresh is infrequent; vendor notifications update battery immediately.
-                    for model in Model.allCases where self.devices[model]?.connected == true { self.probe(model) }
-                }
+            configureBatteryPolling()
+        }
+    }
+    private func configureBatteryPolling() {
+        batteryTask?.cancel()
+        batteryTask = nil
+        guard started, !shuttingDown, statusReadbackEnabled else { return }
+        batteryTask = Task { [weak self] in
+            while !Task.isCancelled {
+                do { try await Task.sleep(for:.seconds(300)) } catch { return }
+                guard let self, !self.shuttingDown, self.statusReadbackEnabled else { return }
+                // Only UI/status mode needs periodic battery and host metadata.
+                for model in Model.allCases where self.devices[model]?.connected == true { self.probe(model) }
             }
         }
+    }
+    func reloadMenuBarPreference() {
+        UserDefaults.standard.synchronize()
+        showMenuBarIcon = UserDefaults.standard.object(forKey: "showMenuBarIcon") as? Bool ?? true
     }
     private func startTransport() {
         checkPermissions()
@@ -150,7 +169,7 @@ struct DeviceViewState {
         probes[model] = Task {
             defer { probes[model] = nil }
             do {
-                let snapshot = try await hardware.probe(model)
+                let snapshot = try await hardware.probe(model, includeStatus: statusReadbackEnabled)
                 guard !Task.isCancelled else { return }
                 devices[model]?.snapshot = snapshot
                 onDeviceStatusChange?()
