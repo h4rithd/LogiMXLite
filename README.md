@@ -25,15 +25,15 @@ The images below are captures of the running macOS app, not design mockups. Batt
 
 ## Install
 
-1. Download [LogiMXLite 1.2.3.pkg](https://github.com/h4rithd/LogiMXLite/releases/download/v1.2.3/LogiMXLite-1.2.3.pkg) from the [Releases page](https://github.com/h4rithd/LogiMXLite/releases).
-2. Check its SHA-256 if you want to verify the download: `8e41478e9e19b76c628cb01ba83ce1e8a828b939c5d35aa023f04bfea473887b`.
+1. Download [LogiMXLite 1.2.4.pkg](https://github.com/h4rithd/LogiMXLite/releases/download/v1.2.4/LogiMXLite-1.2.4.pkg) from the [Releases page](https://github.com/h4rithd/LogiMXLite/releases).
+2. Check its SHA-256 if you want to verify the download: `2ac4728e04a58ebf18071ce360832718bf11cd095d240b087e62d1caa3788940`.
 3. Open the package and launch **LogiMXLite** from Applications. This locally built package is **unsigned and not notarized**; the app inside is ad-hoc signed. macOS may require **Control-click → Open** on first launch. The package does not establish a verified publisher identity.
 4. Pair both supported devices in macOS Bluetooth settings, select this Mac on each Easy-Switch control, and grant **Input Monitoring** and **Accessibility** to LogiMXLite in System Settings → Privacy & Security. Relaunch after granting access.
 5. Quit Logi Options+ or another tool that diverts the same controls before enabling mappings. The Settings screen shows permission and conflict status.
 
-The app runs in the menu bar. Open its configuration window from the status item; use the same item to quit. Settings are stored locally in `~/Library/Application Support/LogiMXLite/` with private file permissions.
+By default, the agent shows a menu-bar icon for battery and connection status. In **Settings → General**, turn off **Show menu-bar icon** to run without menu-bar UI or background battery/status polling. Mouse and keyboard mappings remain active. The change takes effect after closing Configuration. Open LogiMXLite again from Applications to change settings or quit the background agent; the Settings page has a **Quit LogiMXLite** button. Launch at Login is a separate option. Settings are stored locally in `~/Library/Application Support/LogiMXLite/` with private file permissions; the menu-bar preference is stored in local macOS preferences.
 
-The menu-bar instance handles the device input and remains resident. Opening Configuration starts a separate, short-lived process of the **same signed app**. The resident instance releases HID ownership first; the configuration process owns the devices while you edit, then exits when its window closes. The resident instance reloads saved settings and reconnects. This handoff briefly pauses custom mappings; avoid holding a gesture while opening or closing Configuration. No helper daemon, cloud service, or second permission identity is installed. See the [process architecture](docs/MEMORY_ARCHITECTURE.md).
+The resident agent handles device input. Opening Configuration starts a separate, short-lived process of the **same signed app**. The resident instance releases HID ownership first; the configuration process owns the devices while you edit, then exits when its window closes. The resident instance reloads saved settings and reconnects. This handoff briefly pauses custom mappings; avoid holding a gesture while opening or closing Configuration. No helper daemon, cloud service, or second permission identity is installed. See the [process architecture](docs/MEMORY_ARCHITECTURE.md).
 
 ## What works
 
@@ -41,7 +41,7 @@ The menu-bar instance handles the device input and remains resident. Opening Con
 - **Pointer and scrolling:** supported DPI values and presets, SmartShift/free-spin controls, vertical and horizontal scroll speed/direction, and optional smoothing. The scroll transform stops when the app quits.
 - **Keyboard:** assign supported function-row controls, invert Fn mode, and configure supported backlight mode, brightness, inactivity timeout, and effects.
 - **Profiles:** a Desktop configuration with optional per-application overrides. Profiles inherit unchanged controls from Desktop.
-- **Device status:** battery percentage, reported charge state, connection state, and available Easy-Switch channel/host readback. Low-battery menu-bar indicators appear at 30% or below when the device is not charging.
+- **Device status:** when Configuration is open or the menu-bar icon is enabled, battery percentage, reported charge state, connection state, and available Easy-Switch channel/host readback. Low-battery menu-bar indicators appear at 30% or below when the device is not charging. Headless mode skips firmware, battery, and Easy-Switch status requests, but keeps the HID++ control reads needed for mappings.
 - **Portability:** export/import validated JSON settings or preview an import of a local Logi Options+ `settings.db`. Imports do not run scripts and create a local recovery copy before applying changes.
 
 Host names for other Easy-Switch channels appear only when the device provides verified HID++ data. No cloud account is needed. Some Options+ actions and exact physical scroll feel remain unverified; see the [hardware matrix](docs/HARDWARE_MATRIX.md) and [comparison notes](docs/OPTIONS_PLUS_COMPARISON.md).
@@ -50,7 +50,7 @@ Host names for other Easy-Switch channels appear only when the device provides v
 
 Measured on an **Apple M4 Mac, 24 GB RAM, macOS 27.0.1**, using the 1.2.1 arm64 build. These are local samples, not a claim that LogiMXLite matches Options+ latency or power use. Memory below uses macOS `footprint`/`top` physical footprint; RSS shown by `ps` includes shared mapped pages and is not directly comparable.
 
-A separate 1.2.3 spot check measured **15 MB** after a fresh launch with the status dropdown unopened, and **22 MB** after opening and closing it. The dropdown's SwiftUI allocation stayed in the process allocator after close; this observation does not establish a continuing leak. The original monochrome status symbol is retained. Removing just the status icon would save little; a UI-free agent would require moving configuration access, battery display, and quit controls elsewhere.
+A separate 1.2.4 spot check measured **9.1 MB** physical footprint with the menu-bar switch off after a fresh launch and **13 MB** with it on after a configuration cycle. The headless process had no accessible menu bar and sampled **0.0% CPU** in five idle `top` samples. After switching the icon off without restarting, the allocator retained about **13 MB** until relaunch; the configuration process itself exited and freed its memory. Both supported devices were offline during this particular spot check, so these numbers do not establish power use or latency during live input.
 
 | Workload | CPU | Memory | Method |
 |---|---:|---:|---|
@@ -72,7 +72,7 @@ make smoke                 # opens and closes a test configuration window
 make benchmark             # repeatable 100-million-cycle core workload
 ```
 
-The 1.2.3 app bundle passed `codesign --verify --strict`; the PKG payload includes the multi-resolution Finder/Dock icon and excludes the short-lived color status image. The original monochrome status symbol and its dropdown were visually checked in the installed app, the DMG verified, and packaged/installed executable hashes matched. The 39 Swift tests passed before their source folder was removed at the owner's request because tests are not part of the installed app. This repository now contains production targets only, so `swift test` is no longer an available verification step. `pkgbuild` emitted local provenance-metadata warnings even though the package expanded successfully; signing and notarization require the maintainer's Apple Developer credentials. See the [security audit](docs/SECURITY_AUDIT_2026-10-20.md) for details.
+The 1.2.4 app bundle passed `codesign --verify --strict`. The installed app was checked with the switch both off and on: the menu-bar item disappeared and returned after closing Configuration, opening from Applications worked in headless mode, and Quit from Settings stopped both processes. The 39 Swift tests passed before their source folder was removed at the owner's request because tests are not part of the installed app. This repository now contains production targets only, so `swift test` is no longer an available verification step. `pkgbuild` emits local provenance-metadata warnings and AppleDouble metadata entries; signing and notarization require the maintainer's Apple Developer credentials. See the [security audit](docs/SECURITY_AUDIT_2026-10-20.md) for details.
 
 ## Privacy and project notes
 

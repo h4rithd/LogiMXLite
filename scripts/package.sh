@@ -53,6 +53,8 @@ mkdir -p "$stage/pkgroot/Applications"
 ditto --norsrc "$app" "$stage/pkgroot/Applications/LogiMXLite.app"
 codesign --verify --strict "$stage/pkgroot/Applications/LogiMXLite.app"
 pkgbuild --quiet --root "$stage/pkgroot" --install-location / \
+    --filter '(^|/)\._[^/]*$' --filter '(^|/)\.DS_Store$' \
+    --filter '(^|/)\.svn(/|$)' --filter '(^|/)CVS(/|$)' \
     --identifier com.h4rithd.LogiMXLite.pkg --version "$version" "$pkg"
 pkgutil --payload-files "$pkg" | grep -q 'Applications/LogiMXLite.app/Contents/MacOS/LogiMXLite'
 echo "Packaged $app ($(lipo -archs "$app/Contents/MacOS/LogiMXLite")), $pkg, $zip, $dmg"

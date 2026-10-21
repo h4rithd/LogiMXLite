@@ -1,5 +1,9 @@
 # Test results
 
+## 1.2.4 optional menu-bar UI
+
+On 2026-10-21, the installed build's Settings page showed **Show menu-bar icon** with the same switch style as Launch at Login. Switching it off, closing Configuration, and inspecting the resident process showed zero accessible menu bars and one remaining LogiMXLite process. Reopening the app from Applications launched one short-lived configuration child. Switching the icon back on and closing Configuration restored the monochrome status item. The Quit button in Settings stopped both the configuration child and resident agent. Preference persistence was confirmed through macOS defaults. With the icon off after a fresh launch, `footprint` reported **9,089 KB** and five idle `top` samples reported **0.0% CPU**. After an on/off cycle without restarting, the allocator retained about **13 MB**. The supported devices were offline during this run, so live mappings, battery polling suppression on hardware, and physical actions were not verified here. Code inspection confirms the headless probe skips firmware, battery, and host readback and the periodic battery task is not started.
+
 ## 1.2.3 status icon and idle-memory check
 
 On 2026-10-21, the original template-drawn mouse-and-keyboard symbol was visually confirmed in the installed menu bar. The Finder/Dock `.icns` remained packaged and the temporary `StatusIcon.png` was absent. The SwiftUI dropdown opened from the status item after its view was made lazy. `footprint -p` measured 15 MB immediately after a fresh launch and 22 MB after opening and closing the dropdown; five idle `top` samples showed 0.0% CPU before opening it. This is one open/close cycle, not a long-duration leak test. The arm64 build and app signature verified, the DMG verified, the PKG contained the app icon, and installed and packaged executable SHA-256 values matched. The PKG remains unsigned and unnotarized.
