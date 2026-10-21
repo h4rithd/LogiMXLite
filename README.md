@@ -11,6 +11,8 @@ The packaged build runs on **Apple M-series Macs (arm64) with macOS 15 or later*
 
 LogiMXLite is an independent project by Harith Dilshan. It is not affiliated with Logitech.
 
+The supplied LogiMXLite icon is used for the installed app in Finder and for the Dock while the configuration window is open. A 36-pixel version appears in the menu bar, so the resident device process never decodes the full-size icon at launch.
+
 ## Screenshots
 
 The images below are captures of the running macOS app, not design mockups. Battery levels and assignments reflect the test Mac at capture time.
@@ -23,8 +25,8 @@ The images below are captures of the running macOS app, not design mockups. Batt
 
 ## Install
 
-1. Download [LogiMXLite 1.2.1.pkg](https://github.com/h4rithd/LogiMXLite/releases/download/v1.2.1/LogiMXLite-1.2.1.pkg) from the [Releases page](https://github.com/h4rithd/LogiMXLite/releases).
-2. Check its SHA-256 if you want to verify the download: `81a99245d69ecfabadec85a86b60aec83a84d66e00f355084a2e3d18470f6b64`.
+1. Download [LogiMXLite 1.2.2.pkg](https://github.com/h4rithd/LogiMXLite/releases/download/v1.2.2/LogiMXLite-1.2.2.pkg) from the [Releases page](https://github.com/h4rithd/LogiMXLite/releases).
+2. Check its SHA-256 if you want to verify the download: `3662602221232b69e875da371c4c0be5d5f666fa94ae38f89ea77182e889670e`.
 3. Open the package and launch **LogiMXLite** from Applications. This locally built package is **unsigned and not notarized**; the app inside is ad-hoc signed. macOS may require **Control-click → Open** on first launch. The package does not establish a verified publisher identity.
 4. Pair both supported devices in macOS Bluetooth settings, select this Mac on each Easy-Switch control, and grant **Input Monitoring** and **Accessibility** to LogiMXLite in System Settings → Privacy & Security. Relaunch after granting access.
 5. Quit Logi Options+ or another tool that diverts the same controls before enabling mappings. The Settings screen shows permission and conflict status.
@@ -68,7 +70,7 @@ make smoke                 # opens and closes a test configuration window
 make benchmark             # repeatable 100-million-cycle core workload
 ```
 
-The 1.2.1 app bundle passed `codesign --verify --strict`; the DMG verified and the PKG expanded with the app executable present. The configuration-process smoke test passed, and the installed app showed both devices connected before and after a window close. The 39 Swift tests passed before their source folder was removed at the owner's request because tests are not part of the installed app. This repository now contains production targets only, so `swift test` is no longer an available verification step. `pkgbuild` emitted local provenance-metadata warnings even though the package expanded successfully; signing and notarization require the maintainer's Apple Developer credentials. See the [security audit](docs/SECURITY_AUDIT_2026-10-20.md) for details.
+The 1.2.2 app bundle passed `codesign --verify --strict`; the PKG payload includes the multi-resolution icon and menu-bar image. The configuration-process smoke test passed, and the installed app's resident process still measured 16 MB with its window open. The 39 Swift tests passed before their source folder was removed at the owner's request because tests are not part of the installed app. This repository now contains production targets only, so `swift test` is no longer an available verification step. `pkgbuild` emitted local provenance-metadata warnings even though the package expanded successfully; signing and notarization require the maintainer's Apple Developer credentials. See the [security audit](docs/SECURITY_AUDIT_2026-10-20.md) for details.
 
 ## Privacy and project notes
 

@@ -20,6 +20,20 @@ cp -R "$bundle" "$app/Contents/Resources/"
 cp scripts/Info.plist "$app/Contents/Info.plist"
 cp LICENSE "$app/Contents/Resources/LICENSE.txt"
 cp docs/THIRD_PARTY_NOTICES.md "$app/Contents/Resources/THIRD_PARTY_NOTICES.txt"
+# macOS uses the ICNS for Finder, Launch Services, the Dock and Installer's
+# installed-app presentation. The 36px PNG is only decoded by the menu-bar
+# agent; loading the 1024px source at launch previously cost ~32 MB.
+icon_source="Sources/LogiMXLite/Resources/lite-appicon.png"
+iconset="$(mktemp -d)/LogiMXLite.iconset"
+mkdir -p "$iconset"
+for points in 16 32 128 256 512; do
+    sips -s format png -z "$points" "$points" "$icon_source" --out "$iconset/icon_${points}x${points}.png" >/dev/null
+    doubled=$((points * 2))
+    sips -s format png -z "$doubled" "$doubled" "$icon_source" --out "$iconset/icon_${points}x${points}@2x.png" >/dev/null
+done
+iconutil --convert icns "$iconset" --output "$app/Contents/Resources/LogiMXLite.icns"
+rm -rf "$(dirname "$iconset")"
+sips -s format png -z 36 36 "$icon_source" --out "$app/Contents/Resources/StatusIcon.png" >/dev/null
 # Ad-hoc signature with an identifier-based requirement, so permission grants survive rebuilds.
 # Not Developer ID signed or notarized: other Macs must allow it once (see README).
 codesign --force --deep --sign - --identifier com.h4rithd.LogiMXLite -r='designated => identifier "com.h4rithd.LogiMXLite"' "$app"

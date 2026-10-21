@@ -23,7 +23,9 @@ import LogiCore
         let app = NSApplication.shared
         let delegate = ApplicationDelegate()
         app.delegate = delegate
-        app.setActivationPolicy(.accessory)
+        // Only the on-demand configuration process appears in the Dock. The
+        // resident device agent stays menu-bar-only and keeps its small footprint.
+        app.setActivationPolicy(CommandLine.arguments.contains("--configuration-process") ? .regular : .accessory)
         withExtendedLifetime(delegate) { app.run() }
     }
 }
@@ -237,6 +239,12 @@ import LogiCore
         sender.terminate(nil)
     }
     static func mark() -> NSImage {
+        if let url = Bundle.main.url(forResource: "StatusIcon", withExtension: "png"),
+           let image = NSImage(contentsOf: url) {
+            image.size = NSSize(width: 18, height: 18)
+            return image
+        }
+        // SwiftPM command-line development builds do not have the packaged icon.
         let image = NSImage(size:NSSize(width:22,height:22),flipped:false) { _ in
             NSColor.labelColor.setStroke()
             let keyboard = NSBezierPath(roundedRect:NSRect(x:1,y:4,width:13,height:10),xRadius:2,yRadius:2); keyboard.lineWidth=1.4; keyboard.stroke()

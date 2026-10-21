@@ -354,7 +354,7 @@ struct AboutView: View {
             }.padding(.horizontal, 4)
 
             ProSection("Privacy") {
-                Text("Local-only. No network runtime, accounts, telemetry, background cloud sync, private APIs or updater. Original combined-device menu icon. MIT licensed; protocol research references and license notices are included in the app Resources and repository docs.")
+                Text("Local-only. No network runtime, accounts, telemetry, background cloud sync, private APIs or updater. MIT licensed; protocol research references and license notices are included in the app Resources and repository docs.")
                     .lineSpacing(2).fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 14).padding(.vertical, 12).frame(maxWidth: .infinity, alignment: .leading)
             }

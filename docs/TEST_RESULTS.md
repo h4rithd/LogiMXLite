@@ -1,5 +1,9 @@
 # Test results
 
+## 1.2.2 application icon verification
+
+On 2026-10-21, the arm64 app and PKG/DMG/ZIP built with a multi-resolution `LogiMXLite.icns` generated from the supplied 1024-pixel PNG. `iconutil` extracted all ten expected iconset variants, `CFBundleIconFile` resolved in the installed app, and `NSWorkspace` returned the installed app icon. The resident process used the packaged 36-pixel menu-bar image; its physical footprint was 16 MB both with the configuration process open and after it closed. The configuration child reported regular activation policy, so its installed app icon appears in the Dock; the menu-bar agent remained accessory-only. `codesign --verify --strict`, DMG verification, PKG payload inspection, matching packaged/installed executable hashes, and the five-second configuration-process smoke test passed. The PKG remains unsigned and unnotarized.
+
 ## 1.2.1 process split and memory verification
 
 On 2026-10-20, the arm64 release build and application signature verified. The PKG expanded, the DMG verified, and the configuration-process smoke hook reported `configurationProcessRunning=true`. The installed 1.2.1 binary matched the packaged executable by SHA-256. The live configuration child showed both supported BLE devices connected and mappings active; after closing its window, the child exited and the menu-bar process remained alone. The Settings → Relaunch button closed the old child and opened one new child while the resident process stayed at 17 MB; closing that new window again left the resident process alone. Quitting the resident process with a child open ended both processes.

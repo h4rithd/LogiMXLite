@@ -1,6 +1,6 @@
 # Memory and process architecture
 
-LogiMXLite 1.2.1 has two **process roles** using one signed executable and one bundle identifier:
+Since 1.2.1, LogiMXLite has two **process roles** using one signed executable and one bundle identifier:
 
 - The resident menu-bar process owns HID++ reports, mouse gestures, scrolling, active profiles, and battery status. It does not construct the large configuration window or decode its device PNGs.
 - A configuration child starts on demand. The resident process first stops input diversion and releases its IOHID manager. The child then opens the SwiftUI window and temporarily owns the devices. Closing the window makes the child restore native control state and exit. Only after that exit does the resident process reload saved settings and reconnect.
